@@ -66,6 +66,10 @@ func (c *Client) Get(path string, res interface{}) error {
 		return err
 	}
 
+	if resp.IsError() {
+		return errors.New(resp.String())
+	}
+
 	if false {
 		return errors.New(resp.String())
 	}
@@ -84,6 +88,10 @@ func (c *Client) Post(path string, body interface{}, res interface{}) error {
 		return err
 	}
 
+	if resp.IsError() {
+		return errors.New(resp.String())
+	}
+
 	if false {
 		return errors.New(resp.String())
 	}
@@ -92,7 +100,7 @@ func (c *Client) Post(path string, body interface{}, res interface{}) error {
 }
 
 func (c *Client) Put(path string, body interface{}, res interface{}) error {
-	_, err := c.HTTPClient.R().
+	resp, err := c.HTTPClient.R().
 		EnableTrace().
 		SetBody(body).
 		SetResult(&res).
@@ -102,17 +110,25 @@ func (c *Client) Put(path string, body interface{}, res interface{}) error {
 		return err
 	}
 
+	if resp.IsError() {
+		return errors.New(resp.String())
+	}
+
 	return nil
 }
 
 func (c *Client) Delete(path string, res interface{}) error {
-	_, err := c.HTTPClient.R().
+	resp, err := c.HTTPClient.R().
 		EnableTrace().
 		SetResult(&res).
 		Delete(fmt.Sprintf("%s/%s", c.BaseURL, path))
 
 	if err != nil {
 		return err
+	}
+
+	if resp.IsError() {
+		return errors.New(resp.String())
 	}
 
 	return nil
