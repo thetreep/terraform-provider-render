@@ -4,7 +4,7 @@ The Render provider is used to interact with https://render.com
 
 Use the navigation to the left to read about the available resources.
 
-# Render API Documentation
+## Render API Documentation
 
 Here is a link to the official Render API documentation: https://api-docs.render.com/reference/introduction
 
