@@ -23,14 +23,17 @@ description: |-
 
 ### Optional
 
-- `service_details` (Block List, Max: 1) Describes the Service being deployed. (see [below for nested schema](#nestedblock--service_details))
+- `auto_deploy` (Boolean)
+- `branch` (String)
+- `owner` (String)
+- `web_service_details` (Block List, Max: 1) Describes the Service being deployed. (see [below for nested schema](#nestedblock--web_service_details))
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
 
-<a id="nestedblock--service_details"></a>
-### Nested Schema for `service_details`
+<a id="nestedblock--web_service_details"></a>
+### Nested Schema for `web_service_details`
 
 Required:
 
@@ -38,11 +41,15 @@ Required:
 
 Optional:
 
-- `env_specific_details` (Block List, Max: 1) (see [below for nested schema](#nestedblock--service_details--env_specific_details))
+- `health_check_path` (String)
+- `instances` (Number)
+- `native` (Block List, Max: 1) (see [below for nested schema](#nestedblock--web_service_details--native))
+- `plan` (String)
+- `pull_request_previews_enabled` (Boolean)
 - `region` (String)
 
-<a id="nestedblock--service_details--env_specific_details"></a>
-### Nested Schema for `service_details.env_specific_details`
+<a id="nestedblock--web_service_details--native"></a>
+### Nested Schema for `web_service_details.native`
 
 Optional:
 
