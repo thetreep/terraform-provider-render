@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -115,18 +116,30 @@ func resourceServiceCreate(ctx context.Context, d *schema.ResourceData, m interf
 		Name: d.Get("name").(string),
 		Repo: d.Get("repo").(string),
 		Type: utils.ParseServiceType(d.Get("type").(string)),
-		//AutoDeploy: d.Get("auto_deploy"),
 		OwnerId: *ownerId,
 	}
 
-	serviceDetails, err := transformServiceDetails(ctx, d)
+	if raw, ok := d.GetOk("web_service_details"); ok {
+		flat := flattened(raw)
+
+		jsonstring, _ := json.Marshal(flat)
+
+		serviceDetails := render.WebServiceDetailsPOST{}
+
+		json.Unmarshal(jsonstring, &serviceDetails)
+
+		tflog.Debug(ctx, "details", map[string]interface{}{
+			"details": serviceDetails,
+		})
+
+		details := render.ServicePOST_ServiceDetails{}
+		details.FromWebServiceDetailsPOST(serviceDetails)
+
+		service.ServiceDetails = &details
+	}
 
 	if err != nil {
 		return diag.FromErr(err)
-	}
-
-	if serviceDetails != nil {
-		service.ServiceDetails = serviceDetails
 	}
 
 	tflog.Debug(ctx, "creating service", utils.ToJson(service))
@@ -156,7 +169,7 @@ func resourceServiceRead(ctx context.Context, d *schema.ResourceData, m interfac
 	var diags diag.Diagnostics
 
 	id := d.Id()
-
+	
 	s, err := c.Client.GetServiceWithResponse(ctx, id)
 
 	service := s.JSON200
@@ -187,16 +200,49 @@ func resourceServiceUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	id := d.Id()
 
 	name := d.Get("name").(string)
+	branch := d.Get("branch").(string)
+
+	if d.HasChange("region") {
+		return diag.Errorf("'region' cannot be changed once a service is created, you'll have to delete and recreate the service to move regions.")
+	}
 
 	service := render.ServicePATCH{
 		Name: &name,
+		Branch: &branch,
 	}
 
-	_, err := c.Client.UpdateService(ctx, id, service)
+	if raw, ok := d.GetOk("web_service_details"); ok {
+		flat := flattened(raw)
+
+		jsonstring, _ := json.Marshal(flat)
+
+		serviceDetails := render.WebServiceDetailsPATCH{}
+
+		json.Unmarshal(jsonstring, &serviceDetails)
+
+		tflog.Debug(ctx, "details", map[string]interface{}{
+			"details": serviceDetails,
+		})
+
+		details := render.ServicePATCH_ServiceDetails{}
+		details.FromWebServiceDetailsPATCH(serviceDetails)
+
+		service.ServiceDetails = &details
+	}
+
+	tflog.Debug(ctx, "updating service", utils.ToJson(service))
+
+	response, err := c.Client.UpdateServiceWithResponse(ctx, id, service)
 
 	if err != nil {
 		return diag.FromErr(err)
 	}
+
+	if response.StatusCode() != http.StatusOK {
+		return diag.Errorf("error updating service: %s %s", response.StatusCode(), string(response.Body))
+	}
+
+	tflog.Debug(ctx, "updated service: "+response.Status())
 
 	return resourceServiceRead(ctx, d, m)
 }
@@ -209,11 +255,17 @@ func resourceServiceDelete(ctx context.Context, d *schema.ResourceData, m interf
 
 	id := d.Id()
 
-	_, err := c.Client.DeleteService(ctx, id)
+	response, err := c.Client.DeleteServiceWithResponse(ctx, id)
 
 	if err != nil {
 		return diag.FromErr(err)
 	}
+
+	if response.StatusCode() != http.StatusNoContent {
+		return diag.Errorf("error deleting service: %s %s", response.StatusCode(), string(response.Body))
+	}
+
+	tflog.Debug(ctx, "deleted service: "+response.Status())
 
 	d.SetId("")
 

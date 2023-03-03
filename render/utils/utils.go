@@ -33,6 +33,10 @@ func ParseServiceType(serviceType string) render.ServiceType {
 	return serviceTypeMap[serviceType]
 }
 
+func ParseRegion(region string) render.Region {
+	return regionMap[region]
+}
+
 var (
 	serviceTypeMap = map[string]render.ServiceType{
 		"web_service":       render.WebService,
@@ -50,6 +54,11 @@ var (
 		"python": render.Python,
 		"ruby":   render.Ruby,
 		"rust":   render.Rust,
+	}
+
+	regionMap = map[string]render.Region{
+		"frankfurt": render.Frankfurt,
+		"oregon": render.Oregon,
 	}
 )
 

@@ -18,12 +18,47 @@ func transformServiceDetails(ctx context.Context, d *schema.ResourceData) (*rend
 	return nil, nil
 }
 
+func flattened(v interface{}) map[string]interface{} {
+	value := utils.GetBlock(v)
+
+	details := map[string]interface{}{
+		"region": value["region"],
+		"env": value["env"],
+		"numInstances": value["instances"],
+		"plan": value["plan"],
+		"healthCheckPath": value["health_check_path"],
+	}
+
+	if value["native"] != nil {
+		block := utils.GetBlock(value["native"])
+
+		native := map[string]interface{}{
+			"buildCommand": block["build_command"],
+			"startCommand": block["start_command"],
+		}
+
+		details["envSpecificDetails"] = native
+	}
+
+	return details
+}
+
+func transformServiceDetailsPATCH(ctx context.Context, d *schema.ResourceData) (*render.ServicePATCH_ServiceDetails, error) {
+	// if raw, ok := d.GetOk("web_service_details"); ok {
+		// return transformWebServiceDetails(ctx, utils.GetBlock(raw))
+	// }
+
+	return nil, nil
+}
+
 func transformWebServiceDetails(ctx context.Context, serviceDetails map[string]interface{}) (*render.ServicePOST_ServiceDetails, error) {
 	env := utils.ParseServiceEnv(serviceDetails["env"].(string))
+	region := utils.ParseRegion(serviceDetails["region"].(string))
 
 	details := render.ServicePOST_ServiceDetails{}
 
 	err := details.FromWebServiceDetailsPOST(render.WebServiceDetailsPOST{
+		Region: 			&region,
 		Env:                env,
 		EnvSpecificDetails: transformWebServiceEnvSpecificDetails(ctx, serviceDetails),
 	})

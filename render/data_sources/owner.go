@@ -3,6 +3,7 @@ package data_sources
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -49,6 +50,10 @@ func dataSourceOwnerRead(ctx context.Context, d *schema.ResourceData, m interfac
 
 	if err != nil {
 		return diag.FromErr(err)
+	}
+
+	if response.StatusCode() != http.StatusOK {
+		return diag.Errorf("error getting owner: %s %s", response.StatusCode(), string(response.Body))
 	}
 
 	owner := (*response.JSON200)[0].Owner
