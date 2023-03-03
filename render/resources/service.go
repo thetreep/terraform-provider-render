@@ -51,7 +51,7 @@ func resourceService() *schema.Resource {
 			"web_service_details": {
 				Type:        schema.TypeList,
 				Optional:    true,
-				Description: `Describes the Service being deployed.`,
+				Description: "Service details for `web_service` type services.",
 				MaxItems:    1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{

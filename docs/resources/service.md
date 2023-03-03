@@ -26,7 +26,7 @@ description: |-
 - `auto_deploy` (Boolean)
 - `branch` (String)
 - `owner` (String)
-- `web_service_details` (Block List, Max: 1) Describes the Service being deployed. (see [below for nested schema](#nestedblock--web_service_details))
+- `web_service_details` (Block List, Max: 1) Service details for `web_service` type services. (see [below for nested schema](#nestedblock--web_service_details))
 
 ### Read-Only
 
