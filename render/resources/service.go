@@ -1,12 +1,15 @@
-package render
+package resources
 
 import (
 	"context"
+	"fmt"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	r "github.com/jackall3n/terraform-provider-render/client"
-	t "github.com/jackall3n/terraform-provider-render/client/types"
-	"reflect"
+	"github.com/jackall3n/render-go"
+	"github.com/jackall3n/terraform-provider-render/render/types"
+	"github.com/jackall3n/terraform-provider-render/render/utils"
+	"net/http"
 )
 
 func resourceService() *schema.Resource {
@@ -32,7 +35,19 @@ func resourceService() *schema.Resource {
 				Type:     schema.TypeString,
 				Required: true,
 			},
-			"service_details": {
+			"branch": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
+			"auto_deploy": {
+				Type:     schema.TypeBool,
+				Optional: true,
+			},
+			"owner": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
+			"web_service_details": {
 				Type:        schema.TypeList,
 				Optional:    true,
 				Description: `Describes the Service being deployed.`,
@@ -47,7 +62,23 @@ func resourceService() *schema.Resource {
 							Type:     schema.TypeString,
 							Optional: true,
 						},
-						"env_specific_details": {
+						"instances": {
+							Type:     schema.TypeInt,
+							Optional: true,
+						},
+						"plan": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"health_check_path": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"pull_request_previews_enabled": {
+							Type:     schema.TypeBool,
+							Optional: true,
+						},
+						"native": {
 							Type:     schema.TypeList,
 							Optional: true,
 							MaxItems: 1,
@@ -72,98 +103,73 @@ func resourceService() *schema.Resource {
 }
 
 func resourceServiceCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*r.Client)
+	c := m.(*types.Context)
 
-	service := t.Service{
-		Name:    d.Get("name").(string),
-		Type:    d.Get("type").(string),
-		Repo:    d.Get("repo").(string),
-		OwnerId: c.Owner.Id,
-	}
-
-	if serviceDetails := transformServiceDetails(d); serviceDetails != nil {
-		service.ServiceDetails = *serviceDetails
-	}
-
-	deploy, err := c.CreateService(service)
+	ownerId, err := getOwnerId(c, d)
 
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	s := deploy.Service
+	service := render.ServicePOST{
+		Name: d.Get("name").(string),
+		Repo: d.Get("repo").(string),
+		Type: utils.ParseServiceType(d.Get("type").(string)),
+		//AutoDeploy: d.Get("auto_deploy"),
+		OwnerId: *ownerId,
+	}
 
-	d.SetId(s.ID)
+	serviceDetails, err := transformServiceDetails(ctx, d)
+
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	if serviceDetails != nil {
+		service.ServiceDetails = serviceDetails
+	}
+
+	tflog.Debug(ctx, "creating service", utils.ToJson(service))
+
+	response, err := c.Client.CreateServiceWithResponse(ctx, service)
+
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	if response.StatusCode() != http.StatusCreated {
+		return diag.Errorf("error creating service: %s", string(response.Body))
+	}
+
+	tflog.Debug(ctx, "Created service: "+response.Status())
+
+	s := response.JSON201.Service
+
+	d.SetId(*s.Id)
 
 	return resourceServiceRead(ctx, d, m)
 }
 
-func transformServiceDetails(d *schema.ResourceData) *t.ServiceDetails {
-	raw, ok := d.GetOk("service_details")
-
-	if !ok {
-		return nil
-	}
-
-	value := raw.([]interface{})[0].(map[string]interface{})
-
-	var serviceDetails t.ServiceDetails
-
-	if property := reflect.ValueOf(value["env"]); property.IsValid() {
-		serviceDetails.Env = value["env"].(string)
-	}
-
-	if property := reflect.ValueOf(value["region"]); property.IsValid() {
-		serviceDetails.Region = value["region"].(string)
-	}
-
-	if envSpecificDetails := transformEnvSpecificDetails(value["env_specific_details"]); envSpecificDetails != nil {
-		serviceDetails.EnvSpecificDetails = *envSpecificDetails
-	}
-
-	return &serviceDetails
-}
-
-func transformEnvSpecificDetails(v interface{}) *t.EnvSpecificDetails {
-	raw := v.([]interface{})
-
-	if len(raw) == 0 || raw[0] == nil {
-		return nil
-	}
-
-	value := raw[0].(map[string]interface{})
-
-	var envSpecificDetails t.EnvSpecificDetails
-
-	if property := reflect.ValueOf(value["build_command"]); property.IsValid() {
-		envSpecificDetails.BuildCommand = value["build_command"].(string)
-	}
-
-	if property := reflect.ValueOf(value["start_command"]); property.IsValid() {
-		envSpecificDetails.StartCommand = value["start_command"].(string)
-	}
-
-	return &envSpecificDetails
-}
-
 func resourceServiceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*r.Client)
+	c := m.(*types.Context)
 
 	var diags diag.Diagnostics
 
 	id := d.Id()
 
-	s, err := c.GetService(id)
+	s, err := c.Client.GetServiceWithResponse(ctx, id)
+
+	service := s.JSON200
 
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	properties := map[string]interface{}{
-		"id":   s.ID,
-		"name": s.Name,
-		"type": s.Type,
-		"repo": s.Repo,
+		"id":   service.Id,
+		"name": service.Name,
+		"type": service.Type,
+		"repo": service.Repo,
 	}
 
 	for key, value := range properties {
@@ -176,16 +182,17 @@ func resourceServiceRead(ctx context.Context, d *schema.ResourceData, m interfac
 }
 
 func resourceServiceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*r.Client)
+	c := m.(*types.Context)
 
 	id := d.Id()
 
-	service := t.Service{
-		Name: d.Get("name").(string),
-		Type: d.Get("type").(string),
+	name := d.Get("name").(string)
+
+	service := render.ServicePATCH{
+		Name: &name,
 	}
 
-	_, err := c.UpdateService(id, service)
+	_, err := c.Client.UpdateService(ctx, id, service)
 
 	if err != nil {
 		return diag.FromErr(err)
@@ -195,14 +202,14 @@ func resourceServiceUpdate(ctx context.Context, d *schema.ResourceData, m interf
 }
 
 func resourceServiceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*r.Client)
+	c := m.(*types.Context)
 
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
 	id := d.Id()
 
-	_, err := c.DeleteService(id)
+	_, err := c.Client.DeleteService(ctx, id)
 
 	if err != nil {
 		return diag.FromErr(err)
@@ -211,4 +218,21 @@ func resourceServiceDelete(ctx context.Context, d *schema.ResourceData, m interf
 	d.SetId("")
 
 	return diags
+}
+
+func getOwnerId(c *types.Context, d *schema.ResourceData) (*string, error) {
+	raw, ok := d.GetOk("owner")
+
+	if !ok {
+		if c.Owner == nil {
+			return nil, fmt.Errorf("'owner' is required if a global email is not set")
+		}
+
+		return &c.Owner.Id, nil
+	}
+
+	id := raw.(string)
+
+	return &id, nil
+
 }

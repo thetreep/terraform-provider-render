@@ -6,7 +6,7 @@ func providerSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"api_key": {
 			Type:        schema.TypeString,
-			Optional:    true,
+			Required:    true,
 			DefaultFunc: schema.EnvDefaultFunc("RENDER_API_KEY", nil),
 		},
 		"email": {

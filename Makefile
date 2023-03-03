@@ -3,7 +3,7 @@ HOSTNAME=render.com
 NAMESPACE=terraform
 NAME=render
 BINARY=terraform-provider-${NAME}
-VERSION=0.0.2
+VERSION=0.1.0
 OS_ARCH=darwin_amd64
 
 default: install
