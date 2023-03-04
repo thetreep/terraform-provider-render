@@ -47,6 +47,7 @@ The Render provider is used to interact with resources supported by Render.
 func (p *renderProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.ServiceResource,
+		resources.ServiceEnvironmentResource,
 	}
 }
 
