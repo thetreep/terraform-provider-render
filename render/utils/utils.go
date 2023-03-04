@@ -58,7 +58,7 @@ var (
 
 	regionMap = map[string]render.Region{
 		"frankfurt": render.Frankfurt,
-		"oregon": render.Oregon,
+		"oregon":    render.Oregon,
 	}
 )
 
@@ -93,4 +93,16 @@ func ToYesNo(value interface{}) *YesNo {
 	}
 
 	return &result
+}
+
+func Struct(input interface{}, output interface{}) error {
+	jsonString, _ := json.Marshal(input)
+
+	err := json.Unmarshal(jsonString, output)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

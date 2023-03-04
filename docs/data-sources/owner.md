@@ -3,12 +3,12 @@
 page_title: "render_owner Data Source - terraform-provider-render"
 subcategory: ""
 description: |-
-  
+  Provides information about an existing Owner resource.
 ---
 
 # render_owner (Data Source)
 
-
+Provides information about an existing Owner resource.
 
 
 

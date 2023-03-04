@@ -2,99 +2,86 @@ package resources
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/jackall3n/render-go"
+	"github.com/jackall3n/terraform-provider-render/render/models"
+	"github.com/jackall3n/terraform-provider-render/render/modifiers"
 	"github.com/jackall3n/terraform-provider-render/render/types"
 	"github.com/jackall3n/terraform-provider-render/render/utils"
 	"net/http"
 )
 
-func resourceService() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: resourceServiceCreate,
-		ReadContext:   resourceServiceRead,
-		UpdateContext: resourceServiceUpdate,
-		DeleteContext: resourceServiceDelete,
-		Schema: map[string]*schema.Schema{
-			"id": {
-				Type:     schema.TypeString,
-				Computed: true,
-			},
-			"name": {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			"type": {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			"repo": {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			"branch": {
-				Type:     schema.TypeString,
-				Optional: true,
-			},
-			"auto_deploy": {
-				Type:     schema.TypeBool,
-				Optional: true,
-			},
-			"owner": {
-				Type:     schema.TypeString,
-				Optional: true,
-			},
-			"web_service_details": {
-				Type:        schema.TypeList,
-				Optional:    true,
+func ServiceResource() resource.Resource {
+	return &serviceResource{}
+}
+
+type serviceResource struct {
+	client  *render.ClientWithResponses
+	context *types.Context
+}
+
+func (r *serviceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_service"
+}
+
+func (r *serviceResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	// Prevent panic if the provider has not been configured.
+	if req.ProviderData == nil {
+		return
+	}
+
+	ctx, ok := req.ProviderData.(*types.Context)
+
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Resource Configure Type",
+			fmt.Sprintf("Expected *client.ClientWithResponses, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+		return
+	}
+
+	r.context = ctx
+	r.client = ctx.Client
+}
+
+// Schema returns the schema information for a server resource.
+func (r *serviceResource) Schema(_ context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: `Provider for service resource`,
+		Attributes: map[string]schema.Attribute{
+			"id":          schema.StringAttribute{Computed: true},
+			"name":        schema.StringAttribute{Required: true},
+			"type":        schema.StringAttribute{Required: true},
+			"repo":        schema.StringAttribute{Required: true},
+			"branch":      schema.StringAttribute{Optional: true},
+			"auto_deploy": schema.BoolAttribute{Optional: true},
+			"owner":       schema.StringAttribute{Optional: true},
+
+			"web_service_details": schema.SingleNestedAttribute{
 				Description: "Service details for `web_service` type services.",
-				MaxItems:    1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"env": {
-							Type:     schema.TypeString,
-							Required: true,
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"env":    schema.StringAttribute{Required: true}, // Make this a SetAttribute and limit options
+					"region": schema.StringAttribute{Optional: true},
+					"plan":   schema.StringAttribute{Optional: true},
+					"health_check_path": schema.StringAttribute{
+						Optional: true,
+						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							modifiers.StringDefaultValue(""),
 						},
-						"region": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"instances": {
-							Type:     schema.TypeInt,
-							Optional: true,
-						},
-						"plan": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"health_check_path": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"pull_request_previews_enabled": {
-							Type:     schema.TypeBool,
-							Optional: true,
-						},
-						"native": {
-							Type:     schema.TypeList,
-							Optional: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"build_command": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-									"start_command": {
-										Type:     schema.TypeString,
-										Optional: true,
-									},
-								},
-							},
+					},
+					"pull_request_previews_enabled": schema.BoolAttribute{Optional: true},
+
+					"native": schema.SingleNestedAttribute{
+						Optional: true,
+						Attributes: map[string]schema.Attribute{
+							"build_command": schema.StringAttribute{Optional: true},
+							"start_command": schema.StringAttribute{Optional: true},
 						},
 					},
 				},
@@ -103,188 +90,181 @@ func resourceService() *schema.Resource {
 	}
 }
 
-func resourceServiceCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*types.Context)
+func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan models.Service
 
-	ownerId, err := getOwnerId(c, d)
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ownerId, err := getOwner(r.context, plan)
 
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("failed to get owner", err.Error())
+		return
 	}
 
-	service := render.ServicePOST{
-		Name: d.Get("name").(string),
-		Repo: d.Get("repo").(string),
-		Type: utils.ParseServiceType(d.Get("type").(string)),
-		OwnerId: *ownerId,
-	}
-
-	if raw, ok := d.GetOk("web_service_details"); ok {
-		flat := flattened(raw)
-
-		jsonstring, _ := json.Marshal(flat)
-
-		serviceDetails := render.WebServiceDetailsPOST{}
-
-		json.Unmarshal(jsonstring, &serviceDetails)
-
-		tflog.Debug(ctx, "details", map[string]interface{}{
-			"details": serviceDetails,
-		})
-
-		details := render.ServicePOST_ServiceDetails{}
-		details.FromWebServiceDetailsPOST(serviceDetails)
-
-		service.ServiceDetails = &details
-	}
+	post, err := plan.ToServicePOST(ownerId)
 
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("failed to convert to post", err.Error())
+		return
 	}
 
-	tflog.Debug(ctx, "creating service", utils.ToJson(service))
+	tflog.Debug(ctx, "creating service", utils.ToJson(post))
 
-	response, err := c.Client.CreateServiceWithResponse(ctx, service)
+	response, err := r.client.CreateServiceWithResponse(ctx, *post)
 
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("failed to create service", err.Error())
+		return
 	}
 
 	if response.StatusCode() != http.StatusCreated {
-		return diag.Errorf("error creating service: %s", string(response.Body))
+		resp.Diagnostics.AddError("failed to create service", string(response.Body))
+		return
 	}
-
-	tflog.Debug(ctx, "Created service: "+response.Status())
 
 	s := response.JSON201.Service
 
-	d.SetId(*s.Id)
+	tflog.Debug(ctx, "Created service: "+response.Status(), map[string]interface{}{
+		"s": s,
+		"r": string(response.Body),
+	})
 
-	return resourceServiceRead(ctx, d, m)
+	result := plan.FromResponse(*s)
+
+	resp.State.Set(ctx, result)
 }
 
-func resourceServiceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*types.Context)
+func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state models.Service
 
-	var diags diag.Diagnostics
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 
-	id := d.Id()
-	
-	s, err := c.Client.GetServiceWithResponse(ctx, id)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	service := s.JSON200
+	s, err := r.client.GetServiceWithResponse(ctx, state.ID.ValueString())
 
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError(
+			"Error reading service",
+			fmt.Sprintf("Could not read service %s, unexpected error: %s",
+				state.ID.ValueString(),
+				err,
+			),
+		)
+		return
 	}
 
-	properties := map[string]interface{}{
-		"id":   service.Id,
-		"name": service.Name,
-		"type": service.Type,
-		"repo": service.Repo,
-	}
+	result := state.FromResponse(*s.JSON200)
 
-	for key, value := range properties {
-		if err := d.Set(key, value); err != nil {
-			return diag.FromErr(err)
-		}
-	}
+	tflog.Trace(ctx, "read service", map[string]interface{}{
+		"service_id": result.ID.ValueString(),
+	})
 
-	return diags
+	diags = resp.State.Set(ctx, result)
+
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
-func resourceServiceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*types.Context)
-
-	id := d.Id()
-
-	name := d.Get("name").(string)
-	branch := d.Get("branch").(string)
-
-	if d.HasChange("region") {
-		return diag.Errorf("'region' cannot be changed once a service is created, you'll have to delete and recreate the service to move regions.")
+func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan models.Service
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	service := render.ServicePATCH{
-		Name: &name,
-		Branch: &branch,
+	var state models.Service
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	if raw, ok := d.GetOk("web_service_details"); ok {
-		flat := flattened(raw)
-
-		jsonstring, _ := json.Marshal(flat)
-
-		serviceDetails := render.WebServiceDetailsPATCH{}
-
-		json.Unmarshal(jsonstring, &serviceDetails)
-
-		tflog.Debug(ctx, "details", map[string]interface{}{
-			"details": serviceDetails,
-		})
-
-		details := render.ServicePATCH_ServiceDetails{}
-		details.FromWebServiceDetailsPATCH(serviceDetails)
-
-		service.ServiceDetails = &details
-	}
-
-	tflog.Debug(ctx, "updating service", utils.ToJson(service))
-
-	response, err := c.Client.UpdateServiceWithResponse(ctx, id, service)
+	patch, err := plan.ToServicePATCH()
 
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("failed to convert to patch", err.Error())
+		return
 	}
 
-	if response.StatusCode() != http.StatusOK {
-		return diag.Errorf("error updating service: %s %s", response.StatusCode(), string(response.Body))
-	}
-
-	tflog.Debug(ctx, "updated service: "+response.Status())
-
-	return resourceServiceRead(ctx, d, m)
-}
-
-func resourceServiceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*types.Context)
-
-	// Warning or errors can be collected in a slice type
-	var diags diag.Diagnostics
-
-	id := d.Id()
-
-	response, err := c.Client.DeleteServiceWithResponse(ctx, id)
+	response, err := r.client.UpdateServiceWithResponse(ctx, state.ID.ValueString(), *patch)
 
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError(
+			"Error updating service",
+			fmt.Sprintf(
+				"Could not update service %s, unexpected error: %s",
+				state.ID.ValueString(),
+				err,
+			),
+		)
+		return
 	}
 
-	if response.StatusCode() != http.StatusNoContent {
-		return diag.Errorf("error deleting service: %s %s", response.StatusCode(), string(response.Body))
+	result := plan.FromResponse(*response.JSON200)
+
+	tflog.Debug(ctx, "updated service: "+response.Status(), map[string]interface{}{
+		"service_id": result.ID.ValueString(),
+		"service":    response.JSON200,
+		"post":       patch,
+		"json":       string(response.Body),
+	})
+
+	diags = resp.State.Set(ctx, result)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
 	}
-
-	tflog.Debug(ctx, "deleted service: "+response.Status())
-
-	d.SetId("")
-
-	return diags
 }
 
-func getOwnerId(c *types.Context, d *schema.ResourceData) (*string, error) {
-	raw, ok := d.GetOk("owner")
+func (r *serviceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state models.Service
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	if !ok {
+	_, err := r.client.DeleteService(ctx, state.ID.ValueString())
+
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error deleting service",
+			fmt.Sprintf(
+				"Could not delete service %s, unexpected error: %s",
+				state.ID.ValueString(),
+				err,
+			),
+		)
+		return
+	}
+
+	tflog.Trace(ctx, "deleted service", map[string]interface{}{
+		"service_id": state.ID.ValueString(),
+	})
+}
+
+func getOwner(c *types.Context, plan models.Service) (string, error) {
+	if plan.Owner.IsNull() {
 		if c.Owner == nil {
-			return nil, fmt.Errorf("'owner' is required if a global email is not set")
+			return "", fmt.Errorf("'owner' is required if a global email is not set")
 		}
 
-		return &c.Owner.Id, nil
+		return c.Owner.Id, nil
 	}
 
-	id := raw.(string)
-
-	return &id, nil
-
+	return plan.Owner.ValueString(), nil
 }

@@ -3,12 +3,12 @@
 page_title: "render Provider"
 subcategory: ""
 description: |-
-  
+  The Render provider is used to interact with resources supported by Render.
 ---
 
 # render Provider
 
-
+The Render provider is used to interact with resources supported by Render.
 
 
 
@@ -17,7 +17,7 @@ description: |-
 
 ### Required
 
-- `api_key` (String)
+- `api_key` (String, Sensitive)
 
 ### Optional
 

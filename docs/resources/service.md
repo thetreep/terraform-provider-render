@@ -3,12 +3,12 @@
 page_title: "render_service Resource - terraform-provider-render"
 subcategory: ""
 description: |-
-  
+  Provider for service resource
 ---
 
 # render_service (Resource)
 
-
+Provider for service resource
 
 
 
@@ -26,13 +26,13 @@ description: |-
 - `auto_deploy` (Boolean)
 - `branch` (String)
 - `owner` (String)
-- `web_service_details` (Block List, Max: 1) Service details for `web_service` type services. (see [below for nested schema](#nestedblock--web_service_details))
+- `web_service_details` (Attributes) Service details for `web_service` type services. (see [below for nested schema](#nestedatt--web_service_details))
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
 
-<a id="nestedblock--web_service_details"></a>
+<a id="nestedatt--web_service_details"></a>
 ### Nested Schema for `web_service_details`
 
 Required:
@@ -42,13 +42,12 @@ Required:
 Optional:
 
 - `health_check_path` (String)
-- `instances` (Number)
-- `native` (Block List, Max: 1) (see [below for nested schema](#nestedblock--web_service_details--native))
+- `native` (Attributes) (see [below for nested schema](#nestedatt--web_service_details--native))
 - `plan` (String)
 - `pull_request_previews_enabled` (Boolean)
 - `region` (String)
 
-<a id="nestedblock--web_service_details--native"></a>
+<a id="nestedatt--web_service_details--native"></a>
 ### Nested Schema for `web_service_details.native`
 
 Optional:

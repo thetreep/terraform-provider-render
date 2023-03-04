@@ -18,14 +18,14 @@ func transformServiceDetails(ctx context.Context, d *schema.ResourceData) (*rend
 	return nil, nil
 }
 
-func flattened(v interface{}) map[string]interface{} {
-	value := utils.GetBlock(v)
+func webServiceDetails(d interface{}) map[string]interface{} {
+	value := utils.GetBlock(d)
 
 	details := map[string]interface{}{
-		"region": value["region"],
-		"env": value["env"],
-		"numInstances": value["instances"],
-		"plan": value["plan"],
+		"region":          value["region"],
+		"env":             value["env"],
+		"numInstances":    value["instances"],
+		"plan":            value["plan"],
 		"healthCheckPath": value["health_check_path"],
 	}
 
@@ -45,7 +45,7 @@ func flattened(v interface{}) map[string]interface{} {
 
 func transformServiceDetailsPATCH(ctx context.Context, d *schema.ResourceData) (*render.ServicePATCH_ServiceDetails, error) {
 	// if raw, ok := d.GetOk("web_service_details"); ok {
-		// return transformWebServiceDetails(ctx, utils.GetBlock(raw))
+	// return transformWebServiceDetails(ctx, utils.GetBlock(raw))
 	// }
 
 	return nil, nil
@@ -58,7 +58,7 @@ func transformWebServiceDetails(ctx context.Context, serviceDetails map[string]i
 	details := render.ServicePOST_ServiceDetails{}
 
 	err := details.FromWebServiceDetailsPOST(render.WebServiceDetailsPOST{
-		Region: 			&region,
+		Region:             &region,
 		Env:                env,
 		EnvSpecificDetails: transformWebServiceEnvSpecificDetails(ctx, serviceDetails),
 	})
