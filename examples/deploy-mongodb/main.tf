@@ -18,7 +18,7 @@ resource "render_service" "mongodb" {
   type = "private_service"
 
   private_service_details = {
-    env  = "docker"
+    env = "docker"
     disk = {
       name       = "db"
       mount_path = "/data/db"

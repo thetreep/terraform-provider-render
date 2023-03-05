@@ -44,7 +44,7 @@ resource "render_service" "db" {
   type = "private_service"
 
   private_service_details = {
-    env  = "docker"
+    env = "docker"
     disk = {
       name       = "db"
       mount_path = "/data/db"
@@ -56,13 +56,10 @@ resource "render_service" "db" {
 resource "render_service_environment" "api" {
   service = render_service.api.id
 
-  variables = [
-   
-    {
-      key       = "JWT_SECRET"
-      generated = true
-    }
-  ]
+  variables = [{
+    key   = "DATABASE_URL"
+    value = render_service.db.private_service_details.url
+  }]
 }
 
 
