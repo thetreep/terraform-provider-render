@@ -1,4 +1,4 @@
-# Web Service
+# Static Site
 
 This is an example `static_site` using the render
 repo [render-examples/nextjs-hello-world](https://github.com/render-examples/nextjs-hello-world) based on

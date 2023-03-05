@@ -8,21 +8,21 @@ import (
 )
 
 type Service struct {
-	ID                types.String       `tfsdk:"id"`
-	Name              types.String       `tfsdk:"name"`
-	Type              types.String       `tfsdk:"type"`
-	Repo              types.String       `tfsdk:"repo"`
-	Branch            types.String       `tfsdk:"branch"`
-	Owner             types.String       `tfsdk:"owner"`
-	AutoDeploy        types.Bool         `tfsdk:"auto_deploy"`
-	WebServiceDetails *WebServiceDetails `tfsdk:"web_service_details"`
-	StaticSiteDetails *StaticSiteDetails `tfsdk:"static_site_details"`
+	ID                    types.String           `tfsdk:"id"`
+	Name                  types.String           `tfsdk:"name"`
+	Type                  types.String           `tfsdk:"type"`
+	Repo                  types.String           `tfsdk:"repo"`
+	Branch                types.String           `tfsdk:"branch"`
+	Owner                 types.String           `tfsdk:"owner"`
+	AutoDeploy            types.Bool             `tfsdk:"auto_deploy"`
+	WebServiceDetails     *WebServiceDetails     `tfsdk:"web_service_details"`
+	StaticSiteDetails     *StaticSiteDetails     `tfsdk:"static_site_details"`
+	PrivateServiceDetails *PrivateServiceDetails `tfsdk:"private_service_details"`
 }
 
 type WebServiceDetails struct {
-	Env    types.String `tfsdk:"env"`
-	Region types.String `tfsdk:"region"`
-	//Instances                  types.Int64              `tfsdk:"instances"`
+	Env                        types.String             `tfsdk:"env"`
+	Region                     types.String             `tfsdk:"region"`
 	Plan                       types.String             `tfsdk:"plan"`
 	PullRequestPreviewsEnabled types.Bool               `tfsdk:"pull_request_previews_enabled"`
 	HealthCheckPath            types.String             `tfsdk:"health_check_path"`
@@ -40,7 +40,23 @@ type StaticSiteDetails struct {
 	PullRequestPreviewsEnabled types.Bool   `tfsdk:"pull_request_previews_enabled"`
 }
 
+type PrivateServiceDetails struct {
+	Env                        types.String `tfsdk:"env"`
+	Region                     types.String `tfsdk:"region"`
+	Plan                       types.String `tfsdk:"plan"`
+	PullRequestPreviewsEnabled types.Bool   `tfsdk:"pull_request_previews_enabled"`
+	Disk                       *Disk        `tfsdk:"disk"`
+}
+
+type Disk struct {
+	Name      types.String `tfsdk:"name"`
+	MountPath types.String `tfsdk:"mount_path"`
+	SizeGB    types.Int64  `tfsdk:"size_gb"`
+}
+
 func (s Service) FromResponse(response render.Service) Service {
+	serviceType := *response.Type
+
 	service := Service{
 		ID:     fromStringOptional(response.Id),
 		Name:   fromStringOptional(response.Name),
@@ -50,13 +66,12 @@ func (s Service) FromResponse(response render.Service) Service {
 		Owner:  fromStringOptional(response.OwnerId),
 	}
 
-	if *response.Type == render.WebService {
+	if serviceType == render.WebService {
 		webServiceDetails, _ := response.ServiceDetails.AsWebServiceDetails()
 
 		service.WebServiceDetails = &WebServiceDetails{
-			Region: fromRegion(webServiceDetails.Region),
-			Env:    fromServiceEnv(webServiceDetails.Env),
-			//Instances:       fromIntOptional(webServiceDetails.NumInstances),
+			Region:          fromRegion(webServiceDetails.Region),
+			Env:             fromServiceEnv(webServiceDetails.Env),
 			Plan:            fromStringOptional(webServiceDetails.Plan),
 			HealthCheckPath: fromStringOptional(webServiceDetails.HealthCheckPath),
 		}
@@ -71,7 +86,27 @@ func (s Service) FromResponse(response render.Service) Service {
 		}
 	}
 
-	if *response.Type == render.StaticSite {
+	if serviceType == render.PrivateService {
+		details, _ := response.ServiceDetails.AsPrivateServiceDetails()
+
+		service.PrivateServiceDetails = &PrivateServiceDetails{
+			Region: fromRegion(details.Region),
+			Env:    fromServiceEnv(details.Env),
+			Plan:   fromStringOptional(details.Plan),
+		}
+
+		if details.Disk != nil {
+			service.PrivateServiceDetails.Disk = &Disk{
+				Name: fromStringOptional(details.Disk.Name),
+
+				// Hack because the OpenAPI doesn't specify these fields as return.. I should check this
+				MountPath: s.PrivateServiceDetails.Disk.MountPath,
+				SizeGB:    s.PrivateServiceDetails.Disk.SizeGB,
+			}
+		}
+	}
+
+	if serviceType == render.StaticSite {
 		staticSiteDetails, _ := response.ServiceDetails.AsStaticSiteDetails()
 
 		service.StaticSiteDetails = &StaticSiteDetails{
@@ -94,7 +129,7 @@ func (s Service) ToServicePOST(ownerId string) (*render.ServicePOST, error) {
 		OwnerId: ownerId,
 	}
 
-	details := render.ServicePOST_ServiceDetails{}
+	serviceDetails := render.ServicePOST_ServiceDetails{}
 
 	if serviceType == render.WebService || s.WebServiceDetails != nil {
 		if s.WebServiceDetails == nil {
@@ -105,22 +140,20 @@ func (s Service) ToServicePOST(ownerId string) (*render.ServicePOST, error) {
 			return nil, fmt.Errorf("'web_service_details' can only be used for services of type 'web_service'")
 		}
 
-		serviceDetails := render.WebServiceDetailsPOST{}
-		webServiceDetails, err := toWebServiceDetails(s.WebServiceDetails)
+		details := render.WebServiceDetailsPOST{}
+		mapped, err := toWebServiceDetails(s.WebServiceDetails)
 
 		if err != nil {
 			return nil, err
 		}
 
-		if utils.Struct(webServiceDetails, &serviceDetails) != nil {
+		if utils.Struct(mapped, &details) != nil {
 			return nil, err
 		}
 
-		if details.FromWebServiceDetailsPOST(serviceDetails) != nil {
+		if serviceDetails.FromWebServiceDetailsPOST(details) != nil {
 			return nil, err
 		}
-
-		service.ServiceDetails = &details
 	}
 
 	if serviceType == render.StaticSite || s.StaticSiteDetails != nil {
@@ -132,23 +165,48 @@ func (s Service) ToServicePOST(ownerId string) (*render.ServicePOST, error) {
 			return nil, fmt.Errorf("'static_site_details' can only be used for services of type 'static_site'")
 		}
 
-		serviceDetails := render.StaticSiteDetailsPOST{}
-		staticSiteDetails, err := toStaticSiteDetails(s.StaticSiteDetails)
+		details := render.StaticSiteDetailsPOST{}
+		mapped, err := toStaticSiteDetails(s.StaticSiteDetails)
 
 		if err != nil {
 			return nil, err
 		}
 
-		if utils.Struct(staticSiteDetails, &serviceDetails) != nil {
+		if utils.Struct(mapped, &details) != nil {
 			return nil, err
 		}
 
-		if details.FromStaticSiteDetailsPOST(serviceDetails) != nil {
+		if serviceDetails.FromStaticSiteDetailsPOST(details) != nil {
 			return nil, err
 		}
-
-		service.ServiceDetails = &details
 	}
+
+	if serviceType == render.PrivateService || s.PrivateServiceDetails != nil {
+		if s.PrivateServiceDetails == nil {
+			return nil, fmt.Errorf("'private_service_details' is required for services of type 'private_service'")
+		}
+
+		if serviceType != render.PrivateService {
+			return nil, fmt.Errorf("'private_service_details' can only be used for services of type 'private_service'")
+		}
+
+		details := render.PrivateServiceDetailsPOST{}
+		mapped, err := toPrivateServiceDetails(s.PrivateServiceDetails)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if utils.Struct(mapped, &details) != nil {
+			return nil, err
+		}
+
+		if serviceDetails.FromPrivateServiceDetailsPOST(details) != nil {
+			return nil, err
+		}
+	}
+
+	service.ServiceDetails = &serviceDetails
 
 	return &service, nil
 }
@@ -161,7 +219,7 @@ func (s Service) ToServicePATCH() (*render.ServicePATCH, error) {
 		Branch: stringOptionalNil(s.Branch),
 	}
 
-	details := render.ServicePATCH_ServiceDetails{}
+	serviceDetails := render.ServicePATCH_ServiceDetails{}
 
 	if serviceType == render.WebService || s.WebServiceDetails != nil {
 		if s.WebServiceDetails == nil {
@@ -172,22 +230,20 @@ func (s Service) ToServicePATCH() (*render.ServicePATCH, error) {
 			return nil, fmt.Errorf("'web_service_details' can only be used for services of type 'web_service'")
 		}
 
-		serviceDetails := render.WebServiceDetailsPATCH{}
-		webServiceDetails, err := toWebServiceDetails(s.WebServiceDetails)
+		details := render.WebServiceDetailsPATCH{}
+		mapped, err := toWebServiceDetails(s.WebServiceDetails)
 
 		if err != nil {
 			return nil, err
 		}
 
-		if utils.Struct(webServiceDetails, &serviceDetails) != nil {
+		if utils.Struct(mapped, &details) != nil {
 			return nil, err
 		}
 
-		if details.FromWebServiceDetailsPATCH(serviceDetails) != nil {
+		if serviceDetails.FromWebServiceDetailsPATCH(details) != nil {
 			return nil, err
 		}
-
-		service.ServiceDetails = &details
 	}
 
 	if serviceType == render.StaticSite || s.StaticSiteDetails != nil {
@@ -199,32 +255,56 @@ func (s Service) ToServicePATCH() (*render.ServicePATCH, error) {
 			return nil, fmt.Errorf("'static_site_details' can only be used for services of type 'static_site'")
 		}
 
-		serviceDetails := render.StaticSiteDetailsPATCH{}
-		staticSiteDetails, err := toStaticSiteDetails(s.StaticSiteDetails)
+		details := render.StaticSiteDetailsPATCH{}
+		mapped, err := toStaticSiteDetails(s.StaticSiteDetails)
 
 		if err != nil {
 			return nil, err
 		}
 
-		if utils.Struct(staticSiteDetails, &serviceDetails) != nil {
+		if utils.Struct(mapped, &details) != nil {
 			return nil, err
 		}
 
-		if details.FromStaticSiteDetailsPATCH(serviceDetails) != nil {
+		if serviceDetails.FromStaticSiteDetailsPATCH(details) != nil {
 			return nil, err
 		}
-
-		service.ServiceDetails = &details
 	}
+
+	if serviceType == render.PrivateService || s.PrivateServiceDetails != nil {
+		if s.PrivateServiceDetails == nil {
+			return nil, fmt.Errorf("'private_service_details' is required for services of type 'private_service'")
+		}
+
+		if serviceType != render.PrivateService {
+			return nil, fmt.Errorf("'private_service_details' can only be used for services of type 'private_service'")
+		}
+
+		details := render.PrivateServiceDetailsPATCH{}
+		mapped, err := toPrivateServiceDetails(s.PrivateServiceDetails)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if utils.Struct(mapped, &details) != nil {
+			return nil, err
+		}
+
+		if serviceDetails.FromPrivateServiceDetailsPATCH(details) != nil {
+			return nil, err
+		}
+	}
+
+	service.ServiceDetails = &serviceDetails
 
 	return &service, nil
 }
 
 func toWebServiceDetails(webServiceDetails *WebServiceDetails) (map[string]interface{}, error) {
 	details := map[string]interface{}{
-		"region": stringOptionalNil(webServiceDetails.Region),
-		"env":    stringOptional(webServiceDetails.Env),
-		//"numInstances":    int64Optional(webServiceDetails.Instances),
+		"region":          stringOptionalNil(webServiceDetails.Region),
+		"env":             stringOptional(webServiceDetails.Env),
 		"plan":            stringOptionalNil(webServiceDetails.Plan),
 		"healthCheckPath": stringOptional(webServiceDetails.HealthCheckPath),
 	}
@@ -241,6 +321,20 @@ func toWebServiceDetails(webServiceDetails *WebServiceDetails) (map[string]inter
 	return details, nil
 }
 
+func toPrivateServiceDetails(serviceDetails *PrivateServiceDetails) (map[string]interface{}, error) {
+	details := map[string]interface{}{
+		"region": stringOptionalNil(serviceDetails.Region),
+		"env":    stringOptional(serviceDetails.Env),
+		"plan":   stringOptionalNil(serviceDetails.Plan),
+	}
+
+	if serviceDetails.Disk != nil {
+		details["disk"] = toDisk(serviceDetails.Disk)
+	}
+
+	return details, nil
+}
+
 func toStaticSiteDetails(staticSiteDetails *StaticSiteDetails) (map[string]interface{}, error) {
 	details := map[string]interface{}{
 		"buildCommand": staticSiteDetails.BuildCommand.ValueString(),
@@ -248,6 +342,16 @@ func toStaticSiteDetails(staticSiteDetails *StaticSiteDetails) (map[string]inter
 	}
 
 	return details, nil
+}
+
+func toDisk(d *Disk) map[string]interface{} {
+	disk := map[string]interface{}{
+		"name":      d.Name.ValueString(),
+		"mountPath": d.MountPath.ValueString(),
+		"sizeGB":    int64Optional(d.SizeGB),
+	}
+
+	return disk
 }
 
 func stringOptional(str types.String) *string {

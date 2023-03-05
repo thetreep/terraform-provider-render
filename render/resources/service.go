@@ -50,6 +50,15 @@ func (r *serviceResource) Configure(_ context.Context, req resource.ConfigureReq
 
 // Schema returns the schema information for a server resource.
 func (r *serviceResource) Schema(_ context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	disk := schema.SingleNestedAttribute{
+		Optional: true,
+		Attributes: map[string]schema.Attribute{
+			"name":       schema.StringAttribute{Required: true},
+			"mount_path": schema.StringAttribute{Required: true},
+			"size_gb":    schema.Int64Attribute{Optional: true},
+		},
+	}
+
 	resp.Schema = schema.Schema{
 		Description: `Provider for service resource`,
 		Attributes: map[string]schema.Attribute{
@@ -65,9 +74,8 @@ func (r *serviceResource) Schema(_ context.Context, req resource.SchemaRequest, 
 				Description: "Service details for `web_service` type services.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
-					"env":    schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-					"region": schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-					//"instances": schema.Int64Attribute{Optional: true, Computed: true},
+					"env":                           schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+					"region":                        schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 					"plan":                          schema.StringAttribute{Optional: true, Computed: true},
 					"health_check_path":             schema.StringAttribute{Optional: true, Computed: true},
 					"pull_request_previews_enabled": schema.BoolAttribute{Optional: true},
@@ -89,6 +97,18 @@ func (r *serviceResource) Schema(_ context.Context, req resource.SchemaRequest, 
 					"build_command":                 schema.StringAttribute{Optional: true},
 					"publish_path":                  schema.StringAttribute{Optional: true},
 					"pull_request_previews_enabled": schema.BoolAttribute{Optional: true},
+				},
+			},
+
+			"private_service_details": schema.SingleNestedAttribute{
+				Description: "Service details for `private_service` type services.",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"env":                           schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+					"region":                        schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+					"plan":                          schema.StringAttribute{Optional: true, Computed: true},
+					"pull_request_previews_enabled": schema.BoolAttribute{Optional: true},
+					"disk":                          disk,
 				},
 			},
 		},
