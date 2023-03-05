@@ -26,11 +26,22 @@ Provider for service resource
 - `auto_deploy` (Boolean)
 - `branch` (String)
 - `owner` (String)
+- `static_site_details` (Attributes) Service details for `static_site` type services. (see [below for nested schema](#nestedatt--static_site_details))
 - `web_service_details` (Attributes) Service details for `web_service` type services. (see [below for nested schema](#nestedatt--web_service_details))
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
+
+<a id="nestedatt--static_site_details"></a>
+### Nested Schema for `static_site_details`
+
+Optional:
+
+- `build_command` (String)
+- `publish_path` (String)
+- `pull_request_previews_enabled` (Boolean)
+
 
 <a id="nestedatt--web_service_details"></a>
 ### Nested Schema for `web_service_details`

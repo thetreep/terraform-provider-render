@@ -34,11 +34,13 @@ The Render provider is used to interact with resources supported by Render.
         `,
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
-				Optional:  true,
-				Sensitive: true,
+				Description: "Your Render api key, created in the render.com Account Settings. If not supplied, `RENDER_API_KEY` is used",
+				Optional:    true,
+				Sensitive:   true,
 			},
 			"email": schema.StringAttribute{
-				Optional: true,
+				Description: "Your Render email. This is used as a default `owner` in all services where no owner is specified. If not supplied, `RENDER_EMAIL` is used",
+				Optional:    true,
 			},
 		},
 	}
