@@ -48,6 +48,10 @@ Optional:
 - `pull_request_previews_enabled` (Boolean)
 - `region` (String)
 
+Read-Only:
+
+- `url` (String)
+
 <a id="nestedatt--private_service_details--disk"></a>
 ### Nested Schema for `private_service_details.disk`
 
@@ -71,6 +75,10 @@ Optional:
 - `publish_path` (String)
 - `pull_request_previews_enabled` (Boolean)
 
+Read-Only:
+
+- `url` (String)
+
 
 <a id="nestedatt--web_service_details"></a>
 ### Nested Schema for `web_service_details`
@@ -86,6 +94,10 @@ Optional:
 - `plan` (String)
 - `pull_request_previews_enabled` (Boolean)
 - `region` (String)
+
+Read-Only:
+
+- `url` (String)
 
 <a id="nestedatt--web_service_details--native"></a>
 ### Nested Schema for `web_service_details.native`

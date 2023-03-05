@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     render = {
-      version = "1.0.1"
+      version = "1.1.1"
       source  = "render.com/terraform/render"
     }
   }
@@ -27,4 +27,8 @@ resource "render_service" "flask" {
       start_command = "echo 'safe'; gunicorn app:app"
     }
   }
+}
+
+output "nextjs-url" {
+  value = render_service.flask.web_service_details.url
 }

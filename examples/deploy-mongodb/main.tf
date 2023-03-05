@@ -26,3 +26,7 @@ resource "render_service" "mongodb" {
     }
   }
 }
+
+output "mongodb-url" {
+  value = render_service.mongodb.private_service_details.url
+}

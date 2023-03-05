@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     render = {
-      version = "1.0.1"
+      version = "1.1.1"
       source  = "render.com/terraform/render"
     }
   }
@@ -21,4 +21,8 @@ resource "render_service" "nextjs" {
     build_command = "yarn; yarn build; yarn next export"
     publish_path  = "out"
   }
+}
+
+output "nextjs-url" {
+  value = render_service.nextjs.static_site_details.url
 }

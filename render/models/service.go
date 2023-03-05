@@ -27,6 +27,7 @@ type WebServiceDetails struct {
 	PullRequestPreviewsEnabled types.Bool               `tfsdk:"pull_request_previews_enabled"`
 	HealthCheckPath            types.String             `tfsdk:"health_check_path"`
 	Native                     *WebServiceDetailsNative `tfsdk:"native"`
+	Url                        types.String             `tfsdk:"url"`
 }
 
 type WebServiceDetailsNative struct {
@@ -38,6 +39,7 @@ type StaticSiteDetails struct {
 	BuildCommand               types.String `tfsdk:"build_command"`
 	PublishPath                types.String `tfsdk:"publish_path"`
 	PullRequestPreviewsEnabled types.Bool   `tfsdk:"pull_request_previews_enabled"`
+	Url                        types.String `tfsdk:"url"`
 }
 
 type PrivateServiceDetails struct {
@@ -45,6 +47,7 @@ type PrivateServiceDetails struct {
 	Region                     types.String `tfsdk:"region"`
 	Plan                       types.String `tfsdk:"plan"`
 	PullRequestPreviewsEnabled types.Bool   `tfsdk:"pull_request_previews_enabled"`
+	Url                        types.String `tfsdk:"url"`
 	Disk                       *Disk        `tfsdk:"disk"`
 }
 
@@ -67,16 +70,17 @@ func (s Service) FromResponse(response render.Service) Service {
 	}
 
 	if serviceType == render.WebService {
-		webServiceDetails, _ := response.ServiceDetails.AsWebServiceDetails()
+		details, _ := response.ServiceDetails.AsWebServiceDetails()
 
 		service.WebServiceDetails = &WebServiceDetails{
-			Region:          fromRegion(webServiceDetails.Region),
-			Env:             fromServiceEnv(webServiceDetails.Env),
-			Plan:            fromStringOptional(webServiceDetails.Plan),
-			HealthCheckPath: fromStringOptional(webServiceDetails.HealthCheckPath),
+			Region:          fromRegion(details.Region),
+			Env:             fromServiceEnv(details.Env),
+			Plan:            fromStringOptional(details.Plan),
+			HealthCheckPath: fromStringOptional(details.HealthCheckPath),
+			Url:             fromStringOptional(details.Url),
 		}
 
-		native, err := webServiceDetails.EnvSpecificDetails.AsNativeEnvironmentDetails()
+		native, err := details.EnvSpecificDetails.AsNativeEnvironmentDetails()
 
 		if err == nil {
 			service.WebServiceDetails.Native = &WebServiceDetailsNative{
@@ -93,6 +97,7 @@ func (s Service) FromResponse(response render.Service) Service {
 			Region: fromRegion(details.Region),
 			Env:    fromServiceEnv(details.Env),
 			Plan:   fromStringOptional(details.Plan),
+			Url:    fromStringOptional(details.Url),
 		}
 
 		if details.Disk != nil {
@@ -107,11 +112,12 @@ func (s Service) FromResponse(response render.Service) Service {
 	}
 
 	if serviceType == render.StaticSite {
-		staticSiteDetails, _ := response.ServiceDetails.AsStaticSiteDetails()
+		details, _ := response.ServiceDetails.AsStaticSiteDetails()
 
 		service.StaticSiteDetails = &StaticSiteDetails{
-			BuildCommand: fromStringOptional(staticSiteDetails.BuildCommand),
-			PublishPath:  fromStringOptional(staticSiteDetails.PublishPath),
+			BuildCommand: fromStringOptional(details.BuildCommand),
+			PublishPath:  fromStringOptional(details.PublishPath),
+			Url:          fromStringOptional(details.Url),
 		}
 	}
 
