@@ -6,10 +6,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/jackall3n/render-go"
 	"github.com/jackall3n/terraform-provider-render/render/models"
-	"github.com/jackall3n/terraform-provider-render/render/modifiers"
 	"github.com/jackall3n/terraform-provider-render/render/types"
 	"github.com/jackall3n/terraform-provider-render/render/utils"
 	"net/http"
@@ -55,26 +55,21 @@ func (r *serviceResource) Schema(_ context.Context, req resource.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"id":          schema.StringAttribute{Computed: true},
 			"name":        schema.StringAttribute{Required: true},
-			"type":        schema.StringAttribute{Required: true},
-			"repo":        schema.StringAttribute{Required: true},
-			"branch":      schema.StringAttribute{Optional: true},
+			"type":        schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"branch":      schema.StringAttribute{Optional: true, Computed: true},
 			"auto_deploy": schema.BoolAttribute{Optional: true},
-			"owner":       schema.StringAttribute{Optional: true},
+			"repo":        schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"owner":       schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 
 			"web_service_details": schema.SingleNestedAttribute{
 				Description: "Service details for `web_service` type services.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
-					"env":    schema.StringAttribute{Required: true}, // Make this a SetAttribute and limit options
-					"region": schema.StringAttribute{Optional: true},
-					"plan":   schema.StringAttribute{Optional: true},
-					"health_check_path": schema.StringAttribute{
-						Optional: true,
-						Computed: true,
-						PlanModifiers: []planmodifier.String{
-							modifiers.StringDefaultValue(""),
-						},
-					},
+					"env":    schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+					"region": schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+					//"instances": schema.Int64Attribute{Optional: true, Computed: true},
+					"plan":                          schema.StringAttribute{Optional: true, Computed: true},
+					"health_check_path":             schema.StringAttribute{Optional: true, Computed: true},
 					"pull_request_previews_enabled": schema.BoolAttribute{Optional: true},
 
 					"native": schema.SingleNestedAttribute{
@@ -84,6 +79,16 @@ func (r *serviceResource) Schema(_ context.Context, req resource.SchemaRequest, 
 							"start_command": schema.StringAttribute{Optional: true},
 						},
 					},
+				},
+			},
+
+			"static_site_details": schema.SingleNestedAttribute{
+				Description: "Service details for `static_site` type services.",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"build_command":                 schema.StringAttribute{Optional: true},
+					"publish_path":                  schema.StringAttribute{Optional: true},
+					"pull_request_previews_enabled": schema.BoolAttribute{Optional: true},
 				},
 			},
 		},

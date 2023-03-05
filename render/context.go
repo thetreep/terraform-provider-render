@@ -17,6 +17,8 @@ func createContext(ctx context.Context, client *render.ClientWithResponses, emai
 		return c
 	}
 
+	tflog.Debug(ctx, "getting owner")
+
 	owner := getOwner(ctx, client, email)
 
 	if owner == nil {

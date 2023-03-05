@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jackall3n/render-go"
 	"github.com/jackall3n/terraform-provider-render/render/utils"
@@ -18,8 +19,9 @@ type Service struct {
 }
 
 type WebServiceDetails struct {
-	Env                        types.String             `tfsdk:"env"`
-	Region                     types.String             `tfsdk:"region"`
+	Env    types.String `tfsdk:"env"`
+	Region types.String `tfsdk:"region"`
+	//Instances                  types.Int64              `tfsdk:"instances"`
 	Plan                       types.String             `tfsdk:"plan"`
 	PullRequestPreviewsEnabled types.Bool               `tfsdk:"pull_request_previews_enabled"`
 	HealthCheckPath            types.String             `tfsdk:"health_check_path"`
@@ -45,8 +47,9 @@ func (s Service) FromResponse(response render.Service) Service {
 		webServiceDetails, _ := response.ServiceDetails.AsWebServiceDetails()
 
 		service.WebServiceDetails = &WebServiceDetails{
-			Region:          fromRegion(webServiceDetails.Region),
-			Env:             fromServiceEnv(webServiceDetails.Env),
+			Region: fromRegion(webServiceDetails.Region),
+			Env:    fromServiceEnv(webServiceDetails.Env),
+			//Instances:       fromIntOptional(webServiceDetails.NumInstances),
 			Plan:            fromStringOptional(webServiceDetails.Plan),
 			HealthCheckPath: fromStringOptional(webServiceDetails.HealthCheckPath),
 		}
@@ -65,18 +68,34 @@ func (s Service) FromResponse(response render.Service) Service {
 }
 
 func (s Service) ToServicePOST(ownerId string) (*render.ServicePOST, error) {
+	serviceType := render.ServiceType(s.Type.ValueString())
+
 	service := render.ServicePOST{
-		Type:    render.ServiceType(s.Type.ValueString()),
+		Type:    serviceType,
 		Name:    s.Name.ValueString(),
 		Repo:    s.Repo.ValueString(),
-		Branch:  stringOptional(s.Branch),
+		Branch:  stringOptionalNil(s.Branch),
 		OwnerId: ownerId,
 	}
 
-	if s.WebServiceDetails != nil {
+	//js, _ := json.Marshal(service)
+	//
+	//return nil, fmt.Errorf("value: %s", js)
+
+	if serviceType == render.WebService {
+		if s.WebServiceDetails == nil {
+			return nil, fmt.Errorf("'web_service_details' is required for service type 'web_service'")
+		}
+
 		serviceDetails := render.WebServiceDetailsPOST{}
 
-		err := utils.Struct(toWebServiceDetails(s.WebServiceDetails), &serviceDetails)
+		webServiceDetails, err := toWebServiceDetails(s.WebServiceDetails)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = utils.Struct(webServiceDetails, &serviceDetails)
 
 		if err != nil {
 			return nil, err
@@ -86,21 +105,35 @@ func (s Service) ToServicePOST(ownerId string) (*render.ServicePOST, error) {
 		details.FromWebServiceDetailsPOST(serviceDetails)
 
 		service.ServiceDetails = &details
+	} else if s.WebServiceDetails != nil {
+		return nil, fmt.Errorf("'web_service_details' can only be used with the service type 'web_service'")
 	}
 
 	return &service, nil
 }
 
 func (s Service) ToServicePATCH() (*render.ServicePATCH, error) {
+	serviceType := render.ServiceType(s.Type.ValueString())
+
 	service := render.ServicePATCH{
 		Name:   stringOptional(s.Name),
-		Branch: stringOptional(s.Branch),
+		Branch: stringOptionalNil(s.Branch),
 	}
 
-	if s.WebServiceDetails != nil {
+	if serviceType == render.WebService {
+		if s.WebServiceDetails == nil {
+			return nil, fmt.Errorf("'web_service_details' is required for service type 'web_service'")
+		}
+
 		serviceDetails := render.WebServiceDetailsPATCH{}
 
-		err := utils.Struct(toWebServiceDetails(s.WebServiceDetails), &serviceDetails)
+		webServiceDetails, err := toWebServiceDetails(s.WebServiceDetails)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = utils.Struct(webServiceDetails, &serviceDetails)
 
 		if err != nil {
 			return nil, err
@@ -110,16 +143,19 @@ func (s Service) ToServicePATCH() (*render.ServicePATCH, error) {
 		details.FromWebServiceDetailsPATCH(serviceDetails)
 
 		service.ServiceDetails = &details
+	} else if s.WebServiceDetails != nil {
+		return nil, fmt.Errorf("'web_service_details' can only be used with the service type 'web_service'")
 	}
 
 	return &service, nil
 }
 
-func toWebServiceDetails(webServiceDetails *WebServiceDetails) map[string]interface{} {
+func toWebServiceDetails(webServiceDetails *WebServiceDetails) (map[string]interface{}, error) {
 	details := map[string]interface{}{
-		"region":          stringOptional(webServiceDetails.Region),
-		"env":             stringOptional(webServiceDetails.Env),
-		"plan":            stringOptional(webServiceDetails.Plan),
+		"region": stringOptionalNil(webServiceDetails.Region),
+		"env":    stringOptional(webServiceDetails.Env),
+		//"numInstances":    int64Optional(webServiceDetails.Instances),
+		"plan":            stringOptionalNil(webServiceDetails.Plan),
 		"healthCheckPath": stringOptional(webServiceDetails.HealthCheckPath),
 	}
 
@@ -132,11 +168,21 @@ func toWebServiceDetails(webServiceDetails *WebServiceDetails) map[string]interf
 		details["envSpecificDetails"] = native
 	}
 
-	return details
+	return details, nil
 }
 
 func stringOptional(str types.String) *string {
 	if str.IsNull() {
+		return nil
+	}
+
+	value := str.ValueString()
+
+	return &value
+}
+
+func stringOptionalNil(str types.String) *string {
+	if str.IsNull() || str.ValueString() == "" {
 		return nil
 	}
 
