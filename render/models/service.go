@@ -16,6 +16,7 @@ type Service struct {
 	Owner             types.String       `tfsdk:"owner"`
 	AutoDeploy        types.Bool         `tfsdk:"auto_deploy"`
 	WebServiceDetails *WebServiceDetails `tfsdk:"web_service_details"`
+	StaticSiteDetails *StaticSiteDetails `tfsdk:"static_site_details"`
 }
 
 type WebServiceDetails struct {
@@ -31,6 +32,12 @@ type WebServiceDetails struct {
 type WebServiceDetailsNative struct {
 	BuildCommand types.String `tfsdk:"build_command"`
 	StartCommand types.String `tfsdk:"start_command"`
+}
+
+type StaticSiteDetails struct {
+	BuildCommand               types.String `tfsdk:"build_command"`
+	PublishPath                types.String `tfsdk:"publish_path"`
+	PullRequestPreviewsEnabled types.Bool   `tfsdk:"pull_request_previews_enabled"`
 }
 
 func (s Service) FromResponse(response render.Service) Service {
@@ -64,6 +71,15 @@ func (s Service) FromResponse(response render.Service) Service {
 		}
 	}
 
+	if *response.Type == render.StaticSite {
+		staticSiteDetails, _ := response.ServiceDetails.AsStaticSiteDetails()
+
+		service.StaticSiteDetails = &StaticSiteDetails{
+			BuildCommand: fromStringOptional(staticSiteDetails.BuildCommand),
+			PublishPath:  fromStringOptional(staticSiteDetails.PublishPath),
+		}
+	}
+
 	return service
 }
 
@@ -78,35 +94,60 @@ func (s Service) ToServicePOST(ownerId string) (*render.ServicePOST, error) {
 		OwnerId: ownerId,
 	}
 
-	//js, _ := json.Marshal(service)
-	//
-	//return nil, fmt.Errorf("value: %s", js)
+	details := render.ServicePOST_ServiceDetails{}
 
-	if serviceType == render.WebService {
+	if serviceType == render.WebService || s.WebServiceDetails != nil {
 		if s.WebServiceDetails == nil {
-			return nil, fmt.Errorf("'web_service_details' is required for service type 'web_service'")
+			return nil, fmt.Errorf("'web_service_details' is required for services of type 'web_service'")
+		}
+
+		if serviceType != render.WebService {
+			return nil, fmt.Errorf("'web_service_details' can only be used for services of type 'web_service'")
 		}
 
 		serviceDetails := render.WebServiceDetailsPOST{}
-
 		webServiceDetails, err := toWebServiceDetails(s.WebServiceDetails)
 
 		if err != nil {
 			return nil, err
 		}
 
-		err = utils.Struct(webServiceDetails, &serviceDetails)
+		if utils.Struct(webServiceDetails, &serviceDetails) != nil {
+			return nil, err
+		}
+
+		if details.FromWebServiceDetailsPOST(serviceDetails) != nil {
+			return nil, err
+		}
+
+		service.ServiceDetails = &details
+	}
+
+	if serviceType == render.StaticSite || s.StaticSiteDetails != nil {
+		if s.StaticSiteDetails == nil {
+			return nil, fmt.Errorf("'static_site_details' is required for services of type 'static_site'")
+		}
+
+		if serviceType != render.StaticSite {
+			return nil, fmt.Errorf("'static_site_details' can only be used for services of type 'static_site'")
+		}
+
+		serviceDetails := render.StaticSiteDetailsPOST{}
+		staticSiteDetails, err := toStaticSiteDetails(s.StaticSiteDetails)
 
 		if err != nil {
 			return nil, err
 		}
 
-		details := render.ServicePOST_ServiceDetails{}
-		details.FromWebServiceDetailsPOST(serviceDetails)
+		if utils.Struct(staticSiteDetails, &serviceDetails) != nil {
+			return nil, err
+		}
+
+		if details.FromStaticSiteDetailsPOST(serviceDetails) != nil {
+			return nil, err
+		}
 
 		service.ServiceDetails = &details
-	} else if s.WebServiceDetails != nil {
-		return nil, fmt.Errorf("'web_service_details' can only be used with the service type 'web_service'")
 	}
 
 	return &service, nil
@@ -120,31 +161,60 @@ func (s Service) ToServicePATCH() (*render.ServicePATCH, error) {
 		Branch: stringOptionalNil(s.Branch),
 	}
 
-	if serviceType == render.WebService {
+	details := render.ServicePATCH_ServiceDetails{}
+
+	if serviceType == render.WebService || s.WebServiceDetails != nil {
 		if s.WebServiceDetails == nil {
-			return nil, fmt.Errorf("'web_service_details' is required for service type 'web_service'")
+			return nil, fmt.Errorf("'web_service_details' is required for services of type 'web_service'")
+		}
+
+		if serviceType != render.WebService {
+			return nil, fmt.Errorf("'web_service_details' can only be used for services of type 'web_service'")
 		}
 
 		serviceDetails := render.WebServiceDetailsPATCH{}
-
 		webServiceDetails, err := toWebServiceDetails(s.WebServiceDetails)
 
 		if err != nil {
 			return nil, err
 		}
 
-		err = utils.Struct(webServiceDetails, &serviceDetails)
+		if utils.Struct(webServiceDetails, &serviceDetails) != nil {
+			return nil, err
+		}
+
+		if details.FromWebServiceDetailsPATCH(serviceDetails) != nil {
+			return nil, err
+		}
+
+		service.ServiceDetails = &details
+	}
+
+	if serviceType == render.StaticSite || s.StaticSiteDetails != nil {
+		if s.StaticSiteDetails == nil {
+			return nil, fmt.Errorf("'static_site_details' is required for services of type 'static_site'")
+		}
+
+		if serviceType != render.StaticSite {
+			return nil, fmt.Errorf("'static_site_details' can only be used for services of type 'static_site'")
+		}
+
+		serviceDetails := render.StaticSiteDetailsPATCH{}
+		staticSiteDetails, err := toStaticSiteDetails(s.StaticSiteDetails)
 
 		if err != nil {
 			return nil, err
 		}
 
-		details := render.ServicePATCH_ServiceDetails{}
-		details.FromWebServiceDetailsPATCH(serviceDetails)
+		if utils.Struct(staticSiteDetails, &serviceDetails) != nil {
+			return nil, err
+		}
+
+		if details.FromStaticSiteDetailsPATCH(serviceDetails) != nil {
+			return nil, err
+		}
 
 		service.ServiceDetails = &details
-	} else if s.WebServiceDetails != nil {
-		return nil, fmt.Errorf("'web_service_details' can only be used with the service type 'web_service'")
 	}
 
 	return &service, nil
@@ -166,6 +236,15 @@ func toWebServiceDetails(webServiceDetails *WebServiceDetails) (map[string]inter
 		}
 
 		details["envSpecificDetails"] = native
+	}
+
+	return details, nil
+}
+
+func toStaticSiteDetails(staticSiteDetails *StaticSiteDetails) (map[string]interface{}, error) {
+	details := map[string]interface{}{
+		"buildCommand": staticSiteDetails.BuildCommand.ValueString(),
+		"publishPath":  staticSiteDetails.PublishPath.ValueString(),
 	}
 
 	return details, nil

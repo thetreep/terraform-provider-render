@@ -59,7 +59,7 @@ func (r *serviceResource) Schema(_ context.Context, req resource.SchemaRequest, 
 			"branch":      schema.StringAttribute{Optional: true, Computed: true},
 			"auto_deploy": schema.BoolAttribute{Optional: true},
 			"repo":        schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"owner":       schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"owner":       schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 
 			"web_service_details": schema.SingleNestedAttribute{
 				Description: "Service details for `web_service` type services.",
@@ -263,7 +263,7 @@ func (r *serviceResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func getOwner(c *types.Context, plan models.Service) (string, error) {
-	if plan.Owner.IsNull() {
+	if plan.Owner.IsNull() || plan.Owner.ValueString() == "" {
 		if c.Owner == nil {
 			return "", fmt.Errorf("'owner' is required if a global email is not set")
 		}

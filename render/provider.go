@@ -34,7 +34,7 @@ The Render provider is used to interact with resources supported by Render.
         `,
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
-				Required:  true,
+				Optional:  true,
 				Sensitive: true,
 			},
 			"email": schema.StringAttribute{

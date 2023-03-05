@@ -1,3 +1,7 @@
 .idea
 .env
-examples
+
+.terraform*
+terraform.tfstate*
+
+.envrc
