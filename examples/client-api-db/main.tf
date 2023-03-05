@@ -57,9 +57,10 @@ resource "render_service_environment" "api" {
   service = render_service.api.id
 
   variables = [
+   
     {
-      key   = "DATABASE_URL"
-      value = render_service.db.private_service_details.url
+      key       = "JWT_SECRET"
+      generated = true
     }
   ]
 }

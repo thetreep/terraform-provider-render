@@ -35,7 +35,8 @@ func (v ServiceEnvironmentVariable) ToEnvVarsItemPATCH() (*render.EnvVarsPATCH_I
 
 	if v.Generated.ValueBool() {
 		err := item.FromEnvVarKeyGenerateValue(render.EnvVarKeyGenerateValue{
-			Key: v.Key.ValueString(),
+			Key:           v.Key.ValueString(),
+			GenerateValue: "true",
 		})
 
 		if err != nil {

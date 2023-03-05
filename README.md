@@ -10,10 +10,6 @@ Use the navigation to the left to read about the available resources.
 * Private Service
 * Static Site
 
-## Render API Documentation
-
-Here is a link to the official Render API documentation: https://api-docs.render.com/reference/introduction
-
 ## Example Usage
 
 Do not keep your authentication password in HCL for production environments, use Terraform environment variables.
@@ -148,3 +144,7 @@ resource "render_service" "svelte" {
   }
 }
 ```
+
+## Render API Documentation
+
+Here is a link to the official Render API documentation: https://api-docs.render.com/reference/introduction

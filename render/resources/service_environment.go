@@ -141,11 +141,11 @@ func (r *serviceEnvironmentResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	tflog.Trace(ctx, "read service variables", map[string]interface{}{
+	tflog.Debug(ctx, "read service variables", map[string]interface{}{
 		"service": state.Service.ValueString(),
 	})
 
-	s, err := r.client.GetEnvVarsForServiceWithResponse(ctx, state.Service.ValueString(), nil)
+	response, err := r.client.GetEnvVarsForServiceWithResponse(ctx, state.Service.ValueString(), &render.GetEnvVarsForServiceParams{})
 
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -159,9 +159,22 @@ func (r *serviceEnvironmentResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
+	if response.StatusCode() != http.StatusOK {
+		resp.Diagnostics.AddError(
+			"Error reading service variables",
+			fmt.Sprintf("Could not read service variables %s %s, unexpected error: %s",
+				response.Status(),
+				state.Service.ValueString(),
+				string(response.Body),
+			),
+		)
+
+		return
+	}
+
 	var variables []models.ServiceEnvironmentVariable
 
-	for _, item := range *s.JSON200 {
+	for _, item := range *response.JSON200 {
 		variables = append(variables, models.ServiceEnvironmentVariable{}.FromResponse(*item.EnvVar))
 	}
 
@@ -187,7 +200,7 @@ func (r *serviceEnvironmentResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	var variables []render.EnvVarsPATCH_Item
+	variables := render.UpdateEnvVarsForServiceJSONRequestBody{}
 
 	for _, i := range plan.Variables {
 		item, err := i.ToEnvVarsItemPATCH()
@@ -209,7 +222,8 @@ func (r *serviceEnvironmentResource) Update(ctx context.Context, req resource.Up
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to update service variables",
-			fmt.Sprintf("Could not update service variables %s, unexpected error: %s",
+			fmt.Sprintf("Could not update service [%s] variables %s, unexpected error: %s",
+				plan.Service.ValueString(),
 				err.Error(),
 				err,
 			),
@@ -220,7 +234,8 @@ func (r *serviceEnvironmentResource) Update(ctx context.Context, req resource.Up
 	if response.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError(
 			"Failed to update service variables",
-			fmt.Sprintf("Could not update service variables %s, unexpected error: %s",
+			fmt.Sprintf("Could not update service [%s] variables\nresponse: %s %s\nNote: If you're trying to use 'generated' and the response says 'invalid JSON', this is an issue with the render api not this provider.",
+				plan.Service.ValueString(),
 				response.Status(),
 				string(response.Body),
 			),
@@ -234,8 +249,6 @@ func (r *serviceEnvironmentResource) Update(ctx context.Context, req resource.Up
 		"s": s,
 		"r": string(response.Body),
 	})
-
-	//result := plan.FromResponse(*s)
 
 	resp.State.Set(ctx, plan)
 }
