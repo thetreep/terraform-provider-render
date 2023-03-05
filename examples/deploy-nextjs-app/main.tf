@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     render = {
-      version = "0.1.0"
+      version = "1.0.1"
       source  = "render.com/terraform/render"
     }
   }
