@@ -39,7 +39,15 @@ func (r *serviceResource) Configure(_ context.Context, req resource.ConfigureReq
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *client.ClientWithResponses, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *types.Context, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+		return
+	}
+
+	if ctx == nil {
+		resp.Diagnostics.AddError(
+			"Failed to initialize context",
+			fmt.Sprintf("Expected *types.Context, got nil. Please report this issue to the provider developers."),
 		)
 		return
 	}
