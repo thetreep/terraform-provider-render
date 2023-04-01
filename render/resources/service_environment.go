@@ -234,7 +234,7 @@ func (r *serviceEnvironmentResource) Update(ctx context.Context, req resource.Up
 	if response.StatusCode() != http.StatusOK {
 		resp.Diagnostics.AddError(
 			"Failed to update service variables",
-			fmt.Sprintf("Could not update service [%s] variables\nresponse: %s %s\nNote: If you're trying to use 'generated' and the response says 'invalid JSON', this is an issue with the render api not this provider.",
+			fmt.Sprintf("Could not update service [%s] variables\nresponse: %s %s\nNote: If you're trying to use 'generated' and the response says 'invalid JSON', this is an issue with the render api, not this provider.",
 				plan.Service.ValueString(),
 				response.Status(),
 				string(response.Body),

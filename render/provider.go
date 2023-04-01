@@ -112,7 +112,12 @@ func (p *renderProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	bearer, _ := securityprovider.NewSecurityProviderBearerToken(apiKey)
 	client, _ := render.NewClientWithResponses(host, render.WithRequestEditorFn(bearer.Intercept))
 
-	c := createContext(ctx, client, email)
+	c, err := createContext(ctx, client, email)
+
+	if err != nil {
+		resp.Diagnostics.AddError("failed to create context", err.Error())
+		return
+	}
 
 	resp.DataSourceData = c
 	resp.ResourceData = c

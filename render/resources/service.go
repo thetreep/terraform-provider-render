@@ -129,8 +129,7 @@ func (r *serviceResource) Schema(_ context.Context, req resource.SchemaRequest, 
 func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan models.Service
 
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -179,8 +178,7 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state models.Service
 
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -205,25 +203,19 @@ func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, re
 		"service_id": result.ID.ValueString(),
 	})
 
-	diags = resp.State.Set(ctx, result)
+	resp.Diagnostics.Append(resp.State.Set(ctx, result)...)
 
-	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 }
 
 func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan models.Service
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	var plan, state models.Service
 
-	var state models.Service
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -258,8 +250,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		"json":       string(response.Body),
 	})
 
-	diags = resp.State.Set(ctx, result)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, result)...)
 
 	if resp.Diagnostics.HasError() {
 		return

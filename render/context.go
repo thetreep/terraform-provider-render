@@ -10,27 +10,31 @@ import (
 
 var host = "https://api.render.com/v1"
 
-func createContext(ctx context.Context, client *render.ClientWithResponses, email string) *types.Context {
+func createContext(ctx context.Context, client *render.ClientWithResponses, email string) (*types.Context, error) {
 	c := &types.Context{Client: client}
 
 	if email == "" {
-		return c
+		return c, nil
 	}
 
 	tflog.Debug(ctx, "getting owner")
 
-	owner := getOwner(ctx, client, email)
+	owner, err := getOwner(ctx, client, email)
+
+	if err == nil {
+		return nil, fmt.Errorf("failed to get owner: %s", err.Error())
+	}
 
 	if owner == nil {
-		return nil
+		return nil, fmt.Errorf("owner was not returned")
 	}
 
 	c.Owner = owner
 
-	return c
+	return c, nil
 }
 
-func getOwner(ctx context.Context, client *render.ClientWithResponses, email string) *render.Owner {
+func getOwner(ctx context.Context, client *render.ClientWithResponses, email string) (*render.Owner, error) {
 	tflog.Debug(ctx, fmt.Sprintf("getting owners with email: %s", email))
 
 	response, err := client.GetOwnersWithResponse(ctx, &render.GetOwnersParams{
@@ -38,10 +42,14 @@ func getOwner(ctx context.Context, client *render.ClientWithResponses, email str
 	})
 
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	owner := (*response.JSON200)[0].Owner
 
-	return owner
+	tflog.Debug(ctx, "found owner", map[string]interface{}{
+		"owner_id": owner.Id,
+	})
+
+	return owner, nil
 }
