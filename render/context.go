@@ -26,7 +26,7 @@ func createContext(ctx context.Context, client *render.ClientWithResponses, emai
 	}
 
 	if owner == nil {
-		return nil, fmt.Errorf("owner was not returned")
+		return nil, fmt.Errorf("no owner was found for email [%s]", email)
 	}
 
 	c.Owner = owner
@@ -45,11 +45,13 @@ func getOwner(ctx context.Context, client *render.ClientWithResponses, email str
 		return nil, err
 	}
 
-	owner := (*response.JSON200)[0].Owner
+	owners := *response.JSON200
 
-	tflog.Debug(ctx, "found owner", map[string]interface{}{
-		"owner_id": owner.Id,
-	})
+	if len(owners) == 0 {
+		return nil, fmt.Errorf("no owners found for email [%s]", email)
+	}
+
+	owner := owners[0].Owner
 
 	return owner, nil
 }
