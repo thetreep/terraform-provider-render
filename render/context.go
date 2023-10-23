@@ -21,7 +21,7 @@ func createContext(ctx context.Context, client *render.ClientWithResponses, emai
 
 	owner, err := getOwner(ctx, client, email)
 
-	if err == nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed to get owner: %s", err.Error())
 	}
 
