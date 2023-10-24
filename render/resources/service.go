@@ -153,6 +153,12 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	response, err := r.client.CreateServiceWithResponse(ctx, *post)
 
+	customDomainJSONBody := render.CreateCustomDomainJSONRequestBody{
+		Name: "test.primio.app",
+	}
+	_, _ = r.client.CreateCustomDomain(ctx, *response.JSON201.Service.Id, customDomainJSONBody)
+	tflog.Debug(ctx, "Creating Custom Domain")
+
 	if err != nil {
 		resp.Diagnostics.AddError("failed to create service", err.Error())
 		return
