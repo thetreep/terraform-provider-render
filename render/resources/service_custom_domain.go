@@ -11,6 +11,7 @@ import (
 	"github.com/jackall3n/terraform-provider-render/render/types"
 	"github.com/jackall3n/terraform-provider-render/render/utils"
 	"io"
+	"log"
 )
 
 func ServiceCustomDomainResource() resource.Resource {
@@ -89,7 +90,7 @@ func (r *serviceCustomDomainResource) Create(ctx context.Context, req resource.C
 
 	bytes, err := io.ReadAll(response.Body)
 
-	if response.StatusCode != 200 {
+	if response.StatusCode != 201 {
 		resp.Diagnostics.AddError(
 			"Failed to create custom domain",
 			fmt.Sprintf("Could not create custom domain %s, unexpected error: %s",
@@ -108,13 +109,13 @@ func (r *serviceCustomDomainResource) Create(ctx context.Context, req resource.C
 }
 
 func (r *serviceCustomDomainResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	//
+	log.Printf("Reading")
 }
 
 func (r *serviceCustomDomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	//
+	log.Printf("Updating")
 }
 
 func (r *serviceCustomDomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	//
+	log.Printf("Deleting")
 }
