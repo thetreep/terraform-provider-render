@@ -50,6 +50,7 @@ func (p *renderProvider) Resources(_ context.Context) []func() resource.Resource
 	return []func() resource.Resource{
 		resources.ServiceResource,
 		resources.ServiceEnvironmentResource,
+		resources.ServiceCustomDomainResource,
 	}
 }
 
