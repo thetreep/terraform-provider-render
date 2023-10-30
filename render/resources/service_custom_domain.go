@@ -77,25 +77,14 @@ func (r *serviceCustomDomainResource) Create(ctx context.Context, req resource.C
 
 	response, err := r.client.CreateCustomDomain(ctx, plan.ServiceID.ValueString(), customDomainJSONBody)
 
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to update service variables",
-			fmt.Sprintf("Could not update service variables %s, unexpected error: %s",
-				err.Error(),
-				err,
-			),
-		)
-		return
-	}
-
-	bytes, err := io.ReadAll(response.Body)
+	bytes, _ := io.ReadAll(response.Body)
 
 	if response.StatusCode != 201 {
 		resp.Diagnostics.AddError(
 			"Failed to create custom domain",
 			fmt.Sprintf("Could not create custom domain %s, unexpected error: %s",
 				response.Status,
-				string(bytes),
+				err.Error(),
 			),
 		)
 		return
@@ -109,7 +98,51 @@ func (r *serviceCustomDomainResource) Create(ctx context.Context, req resource.C
 }
 
 func (r *serviceCustomDomainResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	log.Printf("Reading")
+	var state models.ServiceCustomDomain
+
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	tflog.Debug(ctx, "reading service custom domain", map[string]interface{}{
+		"service_id":    state.ServiceID.ValueString(),
+		"custom_domain": state.DomainName.ValueString(),
+	})
+
+	log.Printf(state.DomainName.ValueString())
+
+	s, err := r.client.GetCustomDomainWithResponse(ctx, state.ServiceID.ValueString(), state.DomainName.ValueString())
+
+	if s.StatusCode() != 200 {
+		log.Printf("Status code hello %d", s.StatusCode())
+	}
+
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to read custom domain",
+			fmt.Sprintf("Could not read custom domain %s, unexpected error: %s",
+				state.DomainName.ValueString(),
+				err.Error(),
+			),
+		)
+		return
+	}
+
+	result := state.FromResponse(*s.JSON200)
+
+	tflog.Trace(ctx, "Read custom domain", map[string]interface{}{
+		"service_id":    result.ServiceID.ValueString(),
+		"custom_domain": result.DomainName.ValueString(),
+	})
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, result)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 func (r *serviceCustomDomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -117,5 +150,30 @@ func (r *serviceCustomDomainResource) Update(ctx context.Context, req resource.U
 }
 
 func (r *serviceCustomDomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	log.Printf("Deleting")
+	var state models.ServiceCustomDomain
+
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	tflog.Debug(ctx, "deleting custom domain")
+
+	response, err := r.client.DeleteCustomDomainWithResponse(ctx, state.ServiceID.ValueString(), state.DomainName.ValueString())
+
+	if err != nil {
+		resp.Diagnostics.AddError("failed to delete custom domain", err.Error())
+		return
+	}
+
+	s := response.JSON400
+
+	tflog.Debug(ctx, "Deleted custom domain: "+response.Status(), map[string]interface{}{
+		"s": s,
+		"r": string(response.Body),
+	})
+
+	resp.State.Set(ctx, state)
 }
