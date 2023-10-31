@@ -11,7 +11,6 @@ import (
 	"github.com/jackall3n/terraform-provider-render/render/types"
 	"github.com/jackall3n/terraform-provider-render/render/utils"
 	"io"
-	"log"
 )
 
 func ServiceCustomDomainResource() resource.Resource {
@@ -112,13 +111,7 @@ func (r *serviceCustomDomainResource) Read(ctx context.Context, req resource.Rea
 		"custom_domain": state.DomainName.ValueString(),
 	})
 
-	log.Printf(state.DomainName.ValueString())
-
 	s, err := r.client.GetCustomDomainWithResponse(ctx, state.ServiceID.ValueString(), state.DomainName.ValueString())
-
-	if s.StatusCode() != 200 {
-		log.Printf("Status code hello %d", s.StatusCode())
-	}
 
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -146,7 +139,55 @@ func (r *serviceCustomDomainResource) Read(ctx context.Context, req resource.Rea
 }
 
 func (r *serviceCustomDomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	log.Printf("Updating")
+	var plan, state models.ServiceCustomDomain
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	tflog.Debug(ctx, "updating custom domain")
+
+	_, deleteErr := r.client.DeleteCustomDomainWithResponse(ctx, state.ServiceID.ValueString(), state.DomainName.ValueString())
+
+	if deleteErr != nil {
+		resp.Diagnostics.AddError("failed to update custom domain", deleteErr.Error())
+		return
+	}
+
+	customDomainJSONBody := render.CreateCustomDomainJSONRequestBody{
+		Name: plan.DomainName.ValueString(),
+	}
+
+	createResponse, createErr := r.client.CreateCustomDomainWithResponse(ctx, state.ServiceID.ValueString(), customDomainJSONBody)
+
+	if createErr != nil {
+		resp.Diagnostics.AddError(
+			"Error updating custom domain",
+			fmt.Sprintf(
+				"Could not update custom domain %s, unexpected error: %s",
+				state.DomainName.ValueString(),
+				createErr,
+			),
+		)
+		return
+	}
+
+	arrayOfSingleDomain := *createResponse.JSON201
+	result := arrayOfSingleDomain[0]
+
+	tflog.Debug(ctx, "Updated service: "+createResponse.Status(), map[string]interface{}{
+		"service_id":  state.ServiceID.ValueString(),
+		"domain_name": result.Name,
+	})
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, state.FromResponse(result))...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 func (r *serviceCustomDomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
