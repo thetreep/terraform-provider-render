@@ -53,6 +53,11 @@ resource "render_service" "db" {
   }
 }
 
+resource "render_service_custom_domain" "client-domain" {
+  service_id = render_service.client.id
+  domain_name = "client.acme.com"
+}
+
 resource "render_service_environment" "api" {
   service = render_service.api.id
 
