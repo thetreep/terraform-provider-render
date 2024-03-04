@@ -1,5 +1,6 @@
 .idea
 .env
+.DS_STORE
 
 .terraform*
 terraform.tfstate*
