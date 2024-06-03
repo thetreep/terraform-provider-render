@@ -10,6 +10,8 @@ require (
 	github.com/jackall3n/render-go v1.1.0
 )
 
+replace github.com/jackall3n/render-go v1.1.0 => github.com/thetreep/render-go v0.0.0-20240603112609-82c2f69240e1
+
 require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect

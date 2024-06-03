@@ -3,6 +3,9 @@ package resources
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -10,7 +13,6 @@ import (
 	"github.com/jackall3n/terraform-provider-render/render/models"
 	"github.com/jackall3n/terraform-provider-render/render/types"
 	"github.com/jackall3n/terraform-provider-render/render/utils"
-	"io"
 )
 
 func ServiceCustomDomainResource() resource.Resource {
@@ -36,7 +38,10 @@ func (r *serviceCustomDomainResource) Configure(_ context.Context, req resource.
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *client.ClientWithResponses, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf(
+				"Expected *client.ClientWithResponses, got: %T. Please report this issue to the provider developers.",
+				req.ProviderData,
+			),
 		)
 		return
 	}
@@ -69,10 +74,14 @@ func (r *serviceCustomDomainResource) Create(ctx context.Context, req resource.C
 		Name: plan.DomainName.ValueString(),
 	}
 
-	tflog.Debug(ctx, "creating custom domain", utils.ToJson(map[string]interface{}{
-		"service_id":  plan.ServiceID.ValueString(),
-		"domain_name": customDomainJSONBody,
-	}))
+	tflog.Debug(
+		ctx, "creating custom domain", utils.ToJson(
+			map[string]interface{}{
+				"service_id":  plan.ServiceID.ValueString(),
+				"domain_name": customDomainJSONBody,
+			},
+		),
+	)
 
 	response, err := r.client.CreateCustomDomain(ctx, plan.ServiceID.ValueString(), customDomainJSONBody)
 
@@ -81,7 +90,8 @@ func (r *serviceCustomDomainResource) Create(ctx context.Context, req resource.C
 	if response.StatusCode != 201 {
 		resp.Diagnostics.AddError(
 			"Failed to create custom domain",
-			fmt.Sprintf("Could not create custom domain %s, unexpected error: %s",
+			fmt.Sprintf(
+				"Could not create custom domain %s, unexpected error: %s",
 				response.Status,
 				err.Error(),
 			),
@@ -89,9 +99,11 @@ func (r *serviceCustomDomainResource) Create(ctx context.Context, req resource.C
 		return
 	}
 
-	tflog.Debug(ctx, "Created custom domain "+response.Status, map[string]interface{}{
-		"r": string(bytes),
-	})
+	tflog.Debug(
+		ctx, "Created custom domain "+response.Status, map[string]interface{}{
+			"r": string(bytes),
+		},
+	)
 
 	resp.State.Set(ctx, plan)
 }
@@ -106,17 +118,20 @@ func (r *serviceCustomDomainResource) Read(ctx context.Context, req resource.Rea
 		return
 	}
 
-	tflog.Debug(ctx, "reading service custom domain", map[string]interface{}{
-		"service_id":    state.ServiceID.ValueString(),
-		"custom_domain": state.DomainName.ValueString(),
-	})
+	tflog.Debug(
+		ctx, "reading service custom domain", map[string]interface{}{
+			"service_id":    state.ServiceID.ValueString(),
+			"custom_domain": state.DomainName.ValueString(),
+		},
+	)
 
 	s, err := r.client.GetCustomDomainWithResponse(ctx, state.ServiceID.ValueString(), state.DomainName.ValueString())
 
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to read custom domain",
-			fmt.Sprintf("Could not read custom domain %s, unexpected error: %s",
+			fmt.Sprintf(
+				"Could not read custom domain %s, unexpected error: %s",
 				state.DomainName.ValueString(),
 				err.Error(),
 			),
@@ -126,10 +141,12 @@ func (r *serviceCustomDomainResource) Read(ctx context.Context, req resource.Rea
 
 	result := state.FromResponse(*s.JSON200)
 
-	tflog.Trace(ctx, "Read custom domain", map[string]interface{}{
-		"service_id":    result.ServiceID.ValueString(),
-		"custom_domain": result.DomainName.ValueString(),
-	})
+	tflog.Trace(
+		ctx, "Read custom domain", map[string]interface{}{
+			"service_id":    result.ServiceID.ValueString(),
+			"custom_domain": result.DomainName.ValueString(),
+		},
+	)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, result)...)
 
@@ -175,13 +192,27 @@ func (r *serviceCustomDomainResource) Update(ctx context.Context, req resource.U
 		return
 	}
 
+	if createResponse.StatusCode() != http.StatusCreated {
+		resp.Diagnostics.AddError(
+			"Error updating custom domain",
+			fmt.Sprintf(
+				"Could not update custom domain, received HTTP %d %s",
+				createResponse.StatusCode(),
+				createResponse.Status(),
+			),
+		)
+		return
+	}
+
 	arrayOfSingleDomain := *createResponse.JSON201
 	result := arrayOfSingleDomain[0]
 
-	tflog.Debug(ctx, "Updated service: "+createResponse.Status(), map[string]interface{}{
-		"service_id":  state.ServiceID.ValueString(),
-		"domain_name": result.Name,
-	})
+	tflog.Debug(
+		ctx, "Updated service: "+createResponse.Status(), map[string]interface{}{
+			"service_id":  state.ServiceID.ValueString(),
+			"domain_name": result.Name,
+		},
+	)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state.FromResponse(result))...)
 
@@ -211,10 +242,12 @@ func (r *serviceCustomDomainResource) Delete(ctx context.Context, req resource.D
 
 	s := response.JSON400
 
-	tflog.Debug(ctx, "Deleted custom domain: "+response.Status(), map[string]interface{}{
-		"s": s,
-		"r": string(response.Body),
-	})
+	tflog.Debug(
+		ctx, "Deleted custom domain: "+response.Status(), map[string]interface{}{
+			"s": s,
+			"r": string(response.Body),
+		},
+	)
 
 	resp.State.Set(ctx, state)
 }
